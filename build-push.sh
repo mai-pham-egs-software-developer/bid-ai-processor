@@ -37,8 +37,12 @@ if [[ -z "$USERNAME" ]]; then
   read -rp "Docker registry username: " USERNAME
 fi
 if [[ -z "$PASSWORD" ]]; then
-  read -rsp "Docker registry password: " PASSWORD
-  echo
+  if [[ -n "${DOCKER_PASSWORD_FILE:-}" && -f "$DOCKER_PASSWORD_FILE" ]]; then
+    PASSWORD=$(cat "$DOCKER_PASSWORD_FILE")
+  else
+    read -rsp "Docker registry password: " PASSWORD
+    echo
+  fi
 fi
 if [[ -z "$REPO" ]]; then
   DEFAULT_REPO="${USERNAME}/bid-ai-processor"

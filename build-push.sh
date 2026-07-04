@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
-# build-push.sh — build and push the bid-gateway container image
+# build-push.sh — build and push the bid-ai-processor container image
 # Usage: ./build-push.sh [OPTIONS]
 #   -u  Docker registry username
 #   -p  Docker registry password
-#   -r  Repository name  (e.g. myuser/bid-gateway)
+#   -r  Repository name  (e.g. <username>/bid-ai-processor)
 #   -t  Tag              (optional; auto-increments patch from latest remote tag)
 # ---------------------------------------------------------------------------
 
@@ -41,7 +41,9 @@ if [[ -z "$PASSWORD" ]]; then
   echo
 fi
 if [[ -z "$REPO" ]]; then
-  read -rp "Repository name (e.g. myuser/bid-ai-processor): " REPO
+  DEFAULT_REPO="${USERNAME}/bid-ai-processor"
+  read -rp "Repository name [${DEFAULT_REPO}]: " REPO
+  REPO="${REPO:-$DEFAULT_REPO}"
 fi
 
 # ---------------------------------------------------------------------------

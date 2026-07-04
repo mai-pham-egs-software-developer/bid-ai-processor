@@ -108,7 +108,7 @@ async function processBid(bid) {
             record.techRequirements = result;
             record.processedAt = new Date();
             await record.save();
-            console.log(`[ai] ✓ ${bid.notifyNo} / Lot ${lot.lotNo} — ${result.items?.length ?? 0} items`);
+            console.log(`[ai] ✓ ${bid.notifyNo} / Lot ${lot.lotNo} — ${result.items?.length ?? 0} items (key=${result.maskedKey})`);
             processed++;
         } catch (e) {
             record.status = 'error';

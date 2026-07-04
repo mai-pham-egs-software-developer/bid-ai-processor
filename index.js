@@ -13,8 +13,9 @@ app.use(express.json());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-const PORT    = process.env.PORT    || 3002;
-const AI_CRON = process.env.AI_CRON || '0 4 * * *';
+const PORT      = process.env.PORT      || 3002;
+const AI_CRON   = process.env.AI_CRON   || '0 4 * * *';
+const BASE_PATH = process.env.BASE_PATH || '';
 
 // ── Admin UI ──────────────────────────────────────────────────────
 app.get('/', async (req, res) => {
@@ -26,7 +27,7 @@ app.get('/', async (req, res) => {
             AiProcessRecord.countDocuments({ status: 'no_c5' }),
             AiProcessRecord.countDocuments({ status: 'pending' }),
         ]);
-        res.render('index', { stats: { total, done, error, noC5, pending }, cron: AI_CRON });
+        res.render('index', { stats: { total, done, error, noC5, pending }, cron: AI_CRON, basePath: BASE_PATH });
     } catch (e) {
         res.status(500).send(e.message);
     }

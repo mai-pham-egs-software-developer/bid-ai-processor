@@ -183,6 +183,8 @@
 </div>
 
 <script>
+    const BASE = '<%- basePath %>';
+
     let currentPage = 1;
     const PAGE_SIZE = 50;
 
@@ -208,7 +210,7 @@
 
         document.getElementById('tbody').innerHTML = '<tr><td colspan="9" class="empty">Loading…</td></tr>';
         try {
-            const data = await fetch('/api/records?' + params).then(r => r.json());
+            const data = await fetch(BASE + '/api/records?' + params).then(r => r.json());
             renderTable(data.records, data.total, data.totalPages);
         } catch (e) {
             document.getElementById('tbody').innerHTML = `<tr><td colspan="9" class="empty" style="color:#e74c3c">Error: ${esc(e.message)}</td></tr>`;
@@ -260,7 +262,7 @@
     // ── Actions ──────────────────────────────────────────────────
     async function deleteRecord(id) {
         if (!confirm('Remove this record so it gets reprocessed?')) return;
-        await fetch('/api/records/' + id, { method: 'DELETE' });
+        await fetch(BASE + '/api/records/' + id, { method: 'DELETE' });
         await loadRecords(currentPage);
         await refreshStats();
     }
@@ -269,7 +271,7 @@
         const btn = document.getElementById('runBtn');
         btn.disabled = true; btn.textContent = '⏳ Running…';
         showStatus('AI processing started — may take several minutes.', 'info');
-        try { await fetch('/api/run', { method: 'POST' }); }
+        try { await fetch(BASE + '/api/run', { method: 'POST' }); }
         catch (e) { showStatus('Error: ' + e.message, 'err'); }
         finally { btn.disabled = false; btn.textContent = '▶ Run All'; }
     }
@@ -279,14 +281,14 @@
         if (!notifyNo) return;
         showStatus(`Processing ${notifyNo}…`, 'info');
         try {
-            await fetch('/api/process/' + encodeURIComponent(notifyNo), { method: 'POST' });
+            await fetch(BASE + '/api/process/' + encodeURIComponent(notifyNo), { method: 'POST' });
             showStatus(`Started processing ${notifyNo}. Refresh in a few seconds.`, 'ok');
         } catch (e) { showStatus('Error: ' + e.message, 'err'); }
     }
 
     async function retryErrors() {
         if (!confirm('Delete all error records so they retry on next run?')) return;
-        const data = await fetch('/api/retry-errors', { method: 'POST' }).then(r => r.json());
+        const data = await fetch(BASE + '/api/retry-errors', { method: 'POST' }).then(r => r.json());
         showStatus(`Cleared ${data.deleted} error record(s).`, 'ok');
         await loadRecords(1); await refreshStats();
     }
@@ -295,7 +297,7 @@
 
     async function refreshStats() {
         try {
-            const s = await fetch('/api/stats').then(r => r.json());
+            const s = await fetch(BASE + '/api/stats').then(r => r.json());
             document.getElementById('sTotal').textContent   = s.total;
             document.getElementById('sDone').textContent    = s.done;
             document.getElementById('sPending').textContent = s.pending;
@@ -318,7 +320,7 @@
         document.getElementById('modalBody').innerHTML = '<div class="empty">Loading…</div>';
         document.getElementById('detailModal').classList.add('open');
         try {
-            const r = await fetch('/api/records/' + id).then(res => res.json());
+            const r = await fetch(BASE + '/api/records/' + id).then(res => res.json());
             document.getElementById('modalTitle').textContent =
                 `Lot ${r.lotNo || ''} — ${r.lotName || ''}`;
             document.getElementById('modalMeta').innerHTML =

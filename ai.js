@@ -81,6 +81,8 @@ async function extractTechRequirements(bid, lot, c5Content) {
 
     if (!apiKey) throw new Error('OPENROUTER_API_KEY is not configured (set it in the be admin panel)');
 
+    const maskedKey = apiKey.length > 10 ? apiKey.slice(0, 6) + '...' + apiKey.slice(-4) : '***';
+
     // Encode C5 markdown as base64 — sent as inline text/plain via image_url data URI
     // (Gemini accepts text/plain data URIs through OpenRouter's multimodal pipeline)
     const fileBase64 = Buffer.from(c5Content, 'utf-8').toString('base64');
@@ -100,7 +102,19 @@ async function extractTechRequirements(bid, lot, c5Content) {
     }
 
     if (!response.ok) {
-        throw new Error(data.error?.message || `OpenRouter error ${response.status}`);
+        const err = data.error || {};
+        console.error(
+            `[ai] OpenRouter error` +
+            ` | key=${maskedKey}` +
+            ` | status=${response.status}` +
+            ` | model=${model}` +
+            ` | max_tokens=${maxTokens}` +
+            ` | code=${err.code ?? '—'}` +
+            ` | type=${err.type ?? '—'}` +
+            ` | message=${err.message ?? '(empty)'}` +
+            ` | bid=${bid.notifyNo} lot=${lot.lotNo}`
+        );
+        throw new Error(err.message || `OpenRouter error ${response.status}`);
     }
 
     const raw = data.choices?.[0]?.message?.content?.trim();
@@ -116,7 +130,7 @@ async function extractTechRequirements(bid, lot, c5Content) {
         return { found: false, items: [], generalRequirements: '', summary: 'AI response could not be parsed as JSON.', raw };
     }
 
-    return { ...parsed, raw };
+    return { ...parsed, raw, maskedKey };
 }
 
 module.exports = { extractTechRequirements };

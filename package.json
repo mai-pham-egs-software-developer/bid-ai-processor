@@ -1,0 +1,16 @@
+{
+  "name": "bid-ai-processor",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "ejs": "^5.0.2",
+    "express": "^4.18.2",
+    "minio": "^8.0.7",
+    "mongoose": "^9.5.0",
+    "node-schedule": "^2.1.1"
+  }
+}

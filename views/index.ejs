@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bid AI Processor — Tech Requirements</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; padding: 20px; }
+        .container { max-width: 1500px; margin: 0 auto; }
+
+        .header { background: white; padding: 20px 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .header h1 { color: #2c3e50; font-size: 24px; }
+        .header .subtitle { color: #7f8c8d; font-size: 13px; margin-top: 4px; }
+
+        .stats-row { display: flex; gap: 14px; margin-bottom: 20px; }
+        .stat-card { flex: 1; background: white; border-radius: 8px; padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); border-left: 4px solid #dfe6e9; }
+        .stat-card.total   { border-left-color: #3498db; }
+        .stat-card.done    { border-left-color: #27ae60; }
+        .stat-card.pending { border-left-color: #f39c12; }
+        .stat-card.noc5    { border-left-color: #95a5a6; }
+        .stat-card.error   { border-left-color: #e74c3c; }
+        .stat-value { font-size: 26px; font-weight: 700; color: #2c3e50; }
+        .stat-label { font-size: 11px; color: #7f8c8d; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .toolbar { background: white; border-radius: 8px; padding: 14px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); margin-bottom: 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .toolbar-sep { flex: 1; }
+
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .btn-primary { background: #3498db; color: white; } .btn-primary:hover { background: #2c80c8; }
+        .btn-success { background: #27ae60; color: white; } .btn-success:hover { background: #1e8449; }
+        .btn-warning { background: #f39c12; color: white; } .btn-warning:hover { background: #d68910; }
+        .btn-danger  { background: #e74c3c; color: white; } .btn-danger:hover  { background: #c0392b; }
+        .btn-light   { background: #ecf0f1; color: #34495e; border: 1px solid #dfe6e9; } .btn-light:hover { background: #dde4e6; }
+        .btn:disabled { opacity: 0.6; cursor: default; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+        .filter-input, .filter-select { padding: 8px 12px; border: 1px solid #dfe6e9; border-radius: 6px; font-size: 13px; color: #34495e; background: #fafbfc; }
+        .filter-input { min-width: 220px; }
+        .filter-input:focus, .filter-select:focus { outline: none; border-color: #3498db; background: white; }
+
+        .table-card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); overflow: hidden; }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        thead th { background: #f0f4f8; color: #34495e; font-weight: 700; padding: 10px 14px; text-align: left; border-bottom: 2px solid #dfe6e9; white-space: nowrap; }
+        tbody td { padding: 9px 14px; border-bottom: 1px solid #f0f4f8; color: #2c3e50; vertical-align: middle; }
+        tbody tr:hover td { background: #f8fbff; }
+        tbody tr:last-child td { border-bottom: none; }
+
+        .cell-mono { font-family: monospace; font-size: 12px; }
+        .cell-trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+        .cell-lot { max-width: 220px; font-size: 12px; }
+
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+        .badge-done    { background: #d5f5e3; color: #1e8449; }
+        .badge-error   { background: #fadbd8; color: #c0392b; }
+        .badge-pending { background: #fef9e7; color: #b7950b; }
+        .badge-no_c5   { background: #eaecee; color: #7f8c8d; }
+
+        .pagination { display: flex; justify-content: flex-end; align-items: center; gap: 6px; padding: 12px 16px; border-top: 1px solid #f0f4f8; font-size: 12px; color: #7f8c8d; }
+        .page-btn { padding: 4px 10px; border-radius: 4px; border: 1px solid #dfe6e9; background: white; color: #34495e; cursor: pointer; font-size: 12px; }
+        .page-btn:hover { background: #f0f4f8; }
+        .page-btn.active { background: #3498db; color: white; border-color: #3498db; }
+        .page-btn:disabled { background: #ecf0f1; color: #bdc3c7; cursor: default; }
+
+        #runStatus { font-size: 13px; padding: 8px 14px; border-radius: 6px; display: none; margin-bottom: 12px; }
+        #runStatus.info { background: #eaf4fd; color: #2471a3; display: block; }
+        #runStatus.ok   { background: #d5f5e3; color: #1e8449; display: block; }
+        #runStatus.err  { background: #fadbd8; color: #c0392b; display: block; }
+
+        /* ── Detail Modal ────────────────────────────────────────── */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: white; border-radius: 10px; width: 1000px; max-width: 96vw; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+        .modal-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 16px 20px; border-bottom: 1px solid #dfe6e9; gap: 14px; }
+        .modal-header-info { flex: 1; }
+        .modal-header-info h3 { font-size: 15px; color: #2c3e50; font-weight: 700; margin-bottom: 4px; }
+        .modal-header-info .meta { font-size: 12px; color: #7f8c8d; }
+        .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #7f8c8d; line-height: 1; flex-shrink: 0; }
+        .modal-close:hover { color: #2c3e50; }
+        .modal-body { flex: 1; overflow: auto; padding: 20px 24px; }
+        .modal-footer { padding: 12px 20px; border-top: 1px solid #dfe6e9; display: flex; justify-content: flex-end; gap: 8px; }
+
+        /* Requirements display */
+        .summary-box { background: #eaf4fd; border-left: 4px solid #3498db; padding: 10px 16px; border-radius: 0 6px 6px 0; margin-bottom: 18px; font-size: 13px; color: #2471a3; line-height: 1.5; }
+        .general-box { background: #fef9e7; border-left: 4px solid #f39c12; padding: 10px 16px; border-radius: 0 6px 6px 0; margin-bottom: 18px; font-size: 13px; color: #7d6608; line-height: 1.5; white-space: pre-wrap; }
+        .items-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .items-table th { background: #f0f4f8; color: #34495e; font-weight: 700; padding: 9px 12px; text-align: left; border: 1px solid #dfe6e9; }
+        .items-table td { padding: 8px 12px; border: 1px solid #dfe6e9; vertical-align: top; }
+        .items-table tbody tr:nth-child(even) td { background: #f8fbff; }
+        .items-table .spec-cell { white-space: pre-wrap; font-size: 12px; max-width: 400px; }
+        .no-data { color: #95a5a6; font-size: 13px; padding: 20px 0; text-align: center; }
+
+        /* Process single bid panel */
+        .process-panel { background: white; border-radius: 8px; padding: 14px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); margin-bottom: 16px; display: flex; gap: 10px; align-items: center; }
+        .process-panel label { font-size: 13px; font-weight: 600; color: #34495e; white-space: nowrap; }
+
+        .empty { padding: 40px; text-align: center; color: #95a5a6; font-size: 14px; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <div class="header">
+        <h1>Bid AI Processor — Technical Requirements</h1>
+        <div class="subtitle">Cron: <code><%= cron %></code> &nbsp;·&nbsp; Extracts technical requirements from Chapter V (Chương V) of bid documents</div>
+    </div>
+
+    <div class="stats-row">
+        <div class="stat-card total">  <div class="stat-value" id="sTotal"><%= stats.total %></div>   <div class="stat-label">Total Lots</div></div>
+        <div class="stat-card done">   <div class="stat-value" id="sDone"><%= stats.done %></div>    <div class="stat-label">Extracted</div></div>
+        <div class="stat-card pending"><div class="stat-value" id="sPending"><%= stats.pending %></div><div class="stat-label">Pending</div></div>
+        <div class="stat-card noc5">   <div class="stat-value" id="sNoC5"><%= stats.noC5 %></div>    <div class="stat-label">No C5 File</div></div>
+        <div class="stat-card error">  <div class="stat-value" id="sError"><%= stats.error %></div>   <div class="stat-label">Errors</div></div>
+    </div>
+
+    <div id="runStatus"></div>
+
+    <!-- Process single bid -->
+    <div class="process-panel">
+        <label>Process single bid:</label>
+        <input type="text" class="filter-input" id="singleNotifyNo" placeholder="Enter Notify No…" style="min-width:200px;flex:1;max-width:300px;">
+        <button class="btn btn-primary" onclick="processSingle()">▶ Process</button>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <input type="text" class="filter-input" id="searchInput" placeholder="Search bid name / notify no / lot…">
+        <select class="filter-select" id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="done">Done</option>
+            <option value="pending">Pending</option>
+            <option value="no_c5">No C5</option>
+            <option value="error">Error</option>
+        </select>
+        <button class="btn btn-light" onclick="loadRecords(1)">Search</button>
+        <div class="toolbar-sep"></div>
+        <button class="btn btn-light" onclick="refresh()">↻ Refresh</button>
+        <button class="btn btn-warning" onclick="retryErrors()">Retry Errors</button>
+        <button class="btn btn-success" id="runBtn" onclick="runAll()">▶ Run All</button>
+    </div>
+
+    <div class="table-card">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:40px">#</th>
+                        <th>Notify No</th>
+                        <th>Bid Name</th>
+                        <th>Lot</th>
+                        <th>Status</th>
+                        <th>Items</th>
+                        <th>C5 File</th>
+                        <th>Processed At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                    <tr><td colspan="9" class="empty">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+    </div>
+</div>
+
+<!-- Detail modal -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-header-info">
+                <h3 id="modalTitle">Technical Requirements</h3>
+                <div class="meta" id="modalMeta"></div>
+            </div>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body" id="modalBody">Loading…</div>
+        <div class="modal-footer">
+            <button class="btn btn-light btn-sm" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentPage = 1;
+    const PAGE_SIZE = 50;
+
+    function esc(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function fmtDate(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleString('vi-VN', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false });
+    }
+    function statusBadge(s) {
+        const cls = { done:'badge-done', error:'badge-error', pending:'badge-pending', no_c5:'badge-no_c5' }[s] || 'badge-pending';
+        return `<span class="badge ${cls}">${s}</span>`;
+    }
+
+    async function loadRecords(page) {
+        currentPage = page || 1;
+        const q      = document.getElementById('searchInput').value.trim();
+        const status = document.getElementById('statusFilter').value;
+        const params = new URLSearchParams({ page: currentPage, limit: PAGE_SIZE });
+        if (q)      params.set('q', q);
+        if (status) params.set('status', status);
+
+        document.getElementById('tbody').innerHTML = '<tr><td colspan="9" class="empty">Loading…</td></tr>';
+        try {
+            const data = await fetch('/api/records?' + params).then(r => r.json());
+            renderTable(data.records, data.total, data.totalPages);
+        } catch (e) {
+            document.getElementById('tbody').innerHTML = `<tr><td colspan="9" class="empty" style="color:#e74c3c">Error: ${esc(e.message)}</td></tr>`;
+        }
+    }
+
+    function renderTable(records, total, totalPages) {
+        const tbody = document.getElementById('tbody');
+        if (!records.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="empty">No records found.</td></tr>';
+            document.getElementById('pagination').innerHTML = '';
+            return;
+        }
+        tbody.innerHTML = records.map((r, i) => {
+            const num  = (currentPage - 1) * PAGE_SIZE + i + 1;
+            const itemCount = r.techRequirements?.items?.length ?? '—';
+            const c5short = r.c5FileKey ? r.c5FileKey.split('/').pop() : '—';
+            const canView = r.status === 'done';
+            return `<tr>
+                <td style="color:#95a5a6">${num}</td>
+                <td><span class="cell-mono">${esc(r.notifyNo)}</span></td>
+                <td><span class="cell-trunc" style="max-width:220px" title="${esc(r.bidName)}">${esc(r.bidName || '—')}</span></td>
+                <td class="cell-lot"><div style="font-weight:600;font-size:11px;color:#3498db">${esc(r.lotNo || '')}</div><div>${esc(r.lotName || '—')}</div></td>
+                <td>${statusBadge(r.status)}</td>
+                <td style="text-align:center;font-weight:600;color:${canView ? '#27ae60' : '#bdc3c7'}">${itemCount}</td>
+                <td><span class="cell-trunc cell-mono" style="max-width:180px;color:#7f8c8d" title="${esc(r.c5FileKey || '')}">${esc(c5short)}</span></td>
+                <td style="white-space:nowrap;font-size:12px;color:#7f8c8d">${fmtDate(r.processedAt)}</td>
+                <td style="white-space:nowrap">
+                    ${canView ? `<button class="btn btn-primary btn-sm" onclick="viewDetail('${r._id}')">View</button> ` : ''}
+                    <button class="btn btn-danger btn-sm" onclick="deleteRecord('${r._id}')">Re-queue</button>
+                </td>
+            </tr>`;
+        }).join('');
+        renderPagination(total, totalPages);
+    }
+
+    function renderPagination(total, totalPages) {
+        const el = document.getElementById('pagination');
+        if (totalPages <= 1) { el.innerHTML = `<span>${total} records</span>`; return; }
+        let html = `<span>${total} records &nbsp;·&nbsp; Page ${currentPage}/${totalPages}</span>`;
+        html += `<button class="page-btn" onclick="loadRecords(${currentPage-1})" ${currentPage<=1?'disabled':''}>‹</button>`;
+        const start = Math.max(1, currentPage-2), end = Math.min(totalPages, currentPage+2);
+        for (let p = start; p <= end; p++)
+            html += `<button class="page-btn ${p===currentPage?'active':''}" onclick="loadRecords(${p})">${p}</button>`;
+        html += `<button class="page-btn" onclick="loadRecords(${currentPage+1})" ${currentPage>=totalPages?'disabled':''}>›</button>`;
+        el.innerHTML = html;
+    }
+
+    // ── Actions ──────────────────────────────────────────────────
+    async function deleteRecord(id) {
+        if (!confirm('Remove this record so it gets reprocessed?')) return;
+        await fetch('/api/records/' + id, { method: 'DELETE' });
+        await loadRecords(currentPage);
+        await refreshStats();
+    }
+
+    async function runAll() {
+        const btn = document.getElementById('runBtn');
+        btn.disabled = true; btn.textContent = '⏳ Running…';
+        showStatus('AI processing started — may take several minutes.', 'info');
+        try { await fetch('/api/run', { method: 'POST' }); }
+        catch (e) { showStatus('Error: ' + e.message, 'err'); }
+        finally { btn.disabled = false; btn.textContent = '▶ Run All'; }
+    }
+
+    async function processSingle() {
+        const notifyNo = document.getElementById('singleNotifyNo').value.trim();
+        if (!notifyNo) return;
+        showStatus(`Processing ${notifyNo}…`, 'info');
+        try {
+            await fetch('/api/process/' + encodeURIComponent(notifyNo), { method: 'POST' });
+            showStatus(`Started processing ${notifyNo}. Refresh in a few seconds.`, 'ok');
+        } catch (e) { showStatus('Error: ' + e.message, 'err'); }
+    }
+
+    async function retryErrors() {
+        if (!confirm('Delete all error records so they retry on next run?')) return;
+        const data = await fetch('/api/retry-errors', { method: 'POST' }).then(r => r.json());
+        showStatus(`Cleared ${data.deleted} error record(s).`, 'ok');
+        await loadRecords(1); await refreshStats();
+    }
+
+    async function refresh() { await Promise.all([loadRecords(currentPage), refreshStats()]); }
+
+    async function refreshStats() {
+        try {
+            const s = await fetch('/api/stats').then(r => r.json());
+            document.getElementById('sTotal').textContent   = s.total;
+            document.getElementById('sDone').textContent    = s.done;
+            document.getElementById('sPending').textContent = s.pending;
+            document.getElementById('sNoC5').textContent    = s.noC5;
+            document.getElementById('sError').textContent   = s.error;
+        } catch (_) {}
+    }
+
+    function showStatus(msg, type) {
+        const el = document.getElementById('runStatus');
+        el.className = type; el.textContent = msg;
+        clearTimeout(el._t);
+        el._t = setTimeout(() => { el.className = ''; }, 10000);
+    }
+
+    // ── Detail modal ─────────────────────────────────────────────
+    async function viewDetail(id) {
+        document.getElementById('modalTitle').textContent = 'Loading…';
+        document.getElementById('modalMeta').textContent = '';
+        document.getElementById('modalBody').innerHTML = '<div class="empty">Loading…</div>';
+        document.getElementById('detailModal').classList.add('open');
+        try {
+            const r = await fetch('/api/records/' + id).then(res => res.json());
+            document.getElementById('modalTitle').textContent =
+                `Lot ${r.lotNo || ''} — ${r.lotName || ''}`;
+            document.getElementById('modalMeta').innerHTML =
+                `<b>${esc(r.notifyNo)}</b> &nbsp;·&nbsp; ${esc(r.bidName || '')} &nbsp;·&nbsp; ${esc(r.investorName || '')}` +
+                (r.c5FileKey ? ` &nbsp;·&nbsp; <span style="font-family:monospace;font-size:11px">${esc(r.c5FileKey.split('/').pop())}</span>` : '');
+            renderDetail(r.techRequirements);
+        } catch (e) {
+            document.getElementById('modalBody').innerHTML = `<div class="empty" style="color:#e74c3c">Error: ${esc(e.message)}</div>`;
+        }
+    }
+
+    function renderDetail(req) {
+        const body = document.getElementById('modalBody');
+        if (!req || !req.found) {
+            body.innerHTML = `<div class="no-data">${esc(req?.summary || 'No technical requirements found.')}</div>`;
+            return;
+        }
+
+        let html = '';
+        if (req.summary) html += `<div class="summary-box">${esc(req.summary)}</div>`;
+        if (req.generalRequirements) html += `<div class="general-box"><b>General Requirements:</b>\n${esc(req.generalRequirements)}</div>`;
+
+        if (req.items && req.items.length) {
+            html += `<table class="items-table">
+                <thead><tr><th style="width:40px">#</th><th>Item / Product</th><th>Technical Specification</th><th style="width:80px">Unit</th><th style="width:80px">Quantity</th></tr></thead>
+                <tbody>`;
+            req.items.forEach((item, i) => {
+                html += `<tr>
+                    <td style="text-align:center;color:#95a5a6">${item.stt ?? i+1}</td>
+                    <td style="font-weight:600">${esc(item.name || '')}</td>
+                    <td class="spec-cell">${esc(item.technicalSpec || '')}</td>
+                    <td>${esc(item.unit || '')}</td>
+                    <td style="text-align:center">${item.quantity != null ? esc(String(item.quantity)) : '—'}</td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+        } else {
+            html += `<div class="no-data">No items found.</div>`;
+        }
+
+        body.innerHTML = html;
+    }
+
+    function closeModal() { document.getElementById('detailModal').classList.remove('open'); }
+    document.getElementById('detailModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+    document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') loadRecords(1); });
+    document.getElementById('statusFilter').addEventListener('change', () => loadRecords(1));
+
+    loadRecords(1);
+</script>
+</body>
+</html>

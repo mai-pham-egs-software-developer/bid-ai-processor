@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# build-push.sh — build and push the bid-gateway container image
+# Usage: ./build-push.sh [OPTIONS]
+#   -u  Docker registry username
+#   -p  Docker registry password
+#   -r  Repository name  (e.g. myuser/bid-gateway)
+#   -t  Tag              (optional; auto-increments patch from latest remote tag)
+# ---------------------------------------------------------------------------
+
+REGISTRY="docker.io"
+USERNAME=""
+PASSWORD=""
+REPO=""
+TAG=""
+
+usage() {
+  echo "Usage: $0 -u <username> -p <password> -r <repo> [-t <tag>]"
+  exit 1
+}
+
+while getopts "u:p:r:t:h" opt; do
+  case $opt in
+    u) USERNAME="$OPTARG" ;;
+    p) PASSWORD="$OPTARG" ;;
+    r) REPO="$OPTARG"     ;;
+    t) TAG="$OPTARG"      ;;
+    h) usage              ;;
+    *) usage              ;;
+  esac
+done
+
+# Prompt for missing required fields
+if [[ -z "$USERNAME" ]]; then
+  read -rp "Docker registry username: " USERNAME
+fi
+if [[ -z "$PASSWORD" ]]; then
+  read -rsp "Docker registry password: " PASSWORD
+  echo
+fi
+if [[ -z "$REPO" ]]; then
+  read -rp "Repository name (e.g. myuser/bid-ai-processor): " REPO
+fi
+
+# ---------------------------------------------------------------------------
+# Login first (validates credentials early; also needed before resolve_tag)
+# ---------------------------------------------------------------------------
+echo ""
+echo "Logging in to Docker Hub as ${USERNAME} ..."
+echo "${PASSWORD}" | docker login -u "${USERNAME}" --password-stdin
+echo "Login successful."
+
+# ---------------------------------------------------------------------------
+# Resolve tag — auto-increment patch from latest remote semver tag
+# ---------------------------------------------------------------------------
+resolve_tag() {
+  local token tags major minor patch
+
+  token=$(curl -s -X POST "https://hub.docker.com/v2/users/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"username\":\"${USERNAME}\",\"password\":\"${PASSWORD}\"}" \
+    | grep -o '"token":"[^"]*"' | cut -d'"' -f4 || true)
+
+  if [[ -z "$token" ]]; then
+    echo "0.0.0"; return
+  fi
+
+  tags=$(curl -s -H "Authorization: Bearer ${token}" \
+    "https://hub.docker.com/v2/repositories/${REPO}/tags/?page_size=100" \
+    | grep -o '"name":"[0-9]*\.[0-9]*\.[0-9]*"' | cut -d'"' -f4 | sort -V | tail -1 || true)
+
+  if [[ -z "$tags" ]]; then
+    echo "0.0.0"; return
+  fi
+
+  IFS='.' read -r major minor patch <<< "$tags" || true
+  echo "${major}.${minor}.$((patch + 1))"
+}
+
+if [[ -z "$TAG" ]]; then
+  echo "No tag supplied — resolving from registry..."
+  TAG=$(resolve_tag)
+  echo "Using tag: ${TAG}"
+fi
+
+# Docker Hub image names must NOT include the docker.io prefix
+FULL_IMAGE="${REPO}:${TAG}"
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
+echo ""
+echo "Building ${FULL_IMAGE} ..."
+docker build -f Containerfile -t "${FULL_IMAGE}" .
+
+# ---------------------------------------------------------------------------
+# Push
+# ---------------------------------------------------------------------------
+echo ""
+echo "Pushing ${FULL_IMAGE} ..."
+docker push "${FULL_IMAGE}"
+
+echo ""
+echo "Done → ${FULL_IMAGE}"

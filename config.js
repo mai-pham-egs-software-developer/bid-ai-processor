@@ -37,4 +37,12 @@ async function getNextApiKey(fallback = '') {
     return key;
 }
 
-module.exports = { getConfigValue, getNextApiKey };
+async function getModel() {
+    const raw = await getConfigValue('OPENROUTER_MODEL', process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite');
+    try {
+        const parsed = JSON.parse(raw);
+        return (Array.isArray(parsed) ? parsed[0] : raw) || 'google/gemini-2.5-flash-lite';
+    } catch { return raw || 'google/gemini-2.5-flash-lite'; }
+}
+
+module.exports = { getConfigValue, getNextApiKey, getModel };

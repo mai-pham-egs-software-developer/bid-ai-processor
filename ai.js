@@ -1,4 +1,4 @@
-const { getNextApiKey } = require('./config');
+const { getNextApiKey, getModel } = require('./config');
 
 function buildPrompt(bid, lot) {
     const bidName = Array.isArray(bid.bidName) ? bid.bidName[0] : bid.bidName;
@@ -66,7 +66,13 @@ async function callOpenRouter(apiKey, model, maxTokens, fileBase64, promptText) 
                 role: 'user',
                 content: [
                     { type: 'text', text: promptText },
-                    { type: 'image_url', image_url: { url: `data:text/plain;base64,${fileBase64}` } },
+                    {
+                        type: 'file',
+                        file: {
+                            filename: 'chapter5.txt',
+                            file_data: `data:text/plain;base64,${fileBase64}`,
+                        },
+                    },
                 ],
             }],
         }),
@@ -77,14 +83,12 @@ async function callOpenRouter(apiKey, model, maxTokens, fileBase64, promptText) 
 
 async function extractTechRequirements(bid, lot, c5Content) {
     const apiKey = await getNextApiKey(process.env.OPENROUTER_API_KEY || '');
-    const model  = process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash-lite';
+    const model  = await getModel();
 
     if (!apiKey) throw new Error('OPENROUTER_API_KEY is not configured (set it in the be admin panel)');
 
     const maskedKey = apiKey.length > 10 ? apiKey.slice(0, 6) + '...' + apiKey.slice(-4) : '***';
 
-    // Encode C5 markdown as base64 — sent as inline text/plain via image_url data URI
-    // (Gemini accepts text/plain data URIs through OpenRouter's multimodal pipeline)
     const fileBase64 = Buffer.from(c5Content, 'utf-8').toString('base64');
     const promptText = buildPrompt(bid, lot);
     let maxTokens    = parseInt(process.env.AI_MAX_TOKENS || '2000');

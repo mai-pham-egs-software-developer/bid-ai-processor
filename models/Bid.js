@@ -29,6 +29,8 @@ const bidSchema = new mongoose.Schema({
     label: String,
     isMedical: Boolean,
     isTestKit: Boolean,
+    aiYcktStatus: { type: String, enum: ['none', 'done', 'error'], default: 'none' },
+    aiYcktAttempt: { type: Number, default: 0 },
 }, { timestamps: true });
 
 module.exports = mongoose.models.Bid || mongoose.model('Bid', bidSchema);

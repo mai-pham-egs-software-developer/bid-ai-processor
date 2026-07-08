@@ -1,13 +1,19 @@
 const { listObjects, getObjectText } = require('./minio');
 
-// Normalize Vietnamese filename to ASCII-ish for pattern matching
+// Normalize Vietnamese filename to ASCII-ish for pattern matching.
+// Collapse every run of non-alphanumeric characters to a single space (not an
+// underscore) so the `\b` word-boundary checks below actually work — an
+// underscore is itself a word character, so e.g. "chuong_v_pdf" (from
+// "Chương V.pdf") has no boundary after "v" and every \b-anchored pattern
+// below would silently never match.
 function normalize(str) {
     return str
         .toLowerCase()
         .normalize('NFD')
         .replace(/[̀-ͯ]/g, '')   // strip diacritics
         .replace(/đ/g, 'd')                 // ð → d
-        .replace(/[^a-z0-9]/g, '_');        // non-alphanumeric → _
+        .replace(/[^a-z0-9]+/g, ' ')        // non-alphanumeric run → single space
+        .trim();
 }
 
 // Score a filename on how likely it is to be Chapter V
@@ -16,29 +22,35 @@ function scoreFilename(filename) {
     let score = 0;
 
     // Strong signals: explicit chapter V markers
-    if (/chuong[_\s]?v\b/.test(n))                     score += 100;
-    if (/chuong[_\s]?5\b/.test(n))                     score += 100;
-    if (/chapter[_\s]?v\b/.test(n))                    score += 100;
-    if (/chapter[_\s]?5\b/.test(n))                    score += 100;
-    if (/phu[_\s]?luc[_\s]?(v\b|5\b)/.test(n))        score += 90;
-    if (/\bc_?v\b/.test(n))                             score += 80;
-    if (/\bch_?v\b/.test(n))                            score += 80;
+    if (/chuong ?v\b/.test(n))                     score += 100;
+    if (/chuong ?5\b/.test(n))                     score += 100;
+    if (/chapter ?v\b/.test(n))                    score += 100;
+    if (/chapter ?5\b/.test(n))                    score += 100;
+    if (/phu ?luc ?(v\b|5\b)/.test(n))             score += 90;
+    if (/\bc ?v\b/.test(n))                        score += 80;
+    if (/\bch ?v\b/.test(n))                       score += 80;
+    if (/\bc5\b/.test(n))                          score += 80;
+    if (/\bch5\b/.test(n))                         score += 80;
 
     // Medium signals: content-type keywords
-    if (/yeu[_\s]?cau[_\s]?ky[_\s]?thuat/.test(n))    score += 70;
-    if (/yckt/.test(n))                                 score += 70;
-    if (/tieu[_\s]?chuan[_\s]?ky[_\s]?thuat/.test(n)) score += 60;
-    if (/ky[_\s]?thuat/.test(n))                       score += 40;
-    if (/technical[_\s]?(spec|req)/.test(n))           score += 70;
+    if (/yeu ?cau ?ky ?thuat/.test(n))             score += 70;
+    // "Yêu cầu KT" — abbreviating "kỹ thuật" as "KT" is a very common
+    // real-world filename pattern for this same document (technical
+    // requirements), seen more often in practice than the spelled-out form.
+    if (/yeu ?cau ?kt\b/.test(n))                  score += 70;
+    if (/yckt/.test(n))                             score += 70;
+    if (/tieu ?chuan ?ky ?thuat/.test(n))          score += 60;
+    if (/ky ?thuat/.test(n))                       score += 40;
+    if (/technical ?(spec|req)/.test(n))           score += 70;
 
     // Weak signals: generic spec keywords
-    if (/thong[_\s]?so/.test(n))                       score += 20;
-    if (/spec/.test(n))                                 score += 15;
+    if (/thong ?so/.test(n))                       score += 20;
+    if (/spec/.test(n))                             score += 15;
 
     // Penalty: clearly not C5
-    if (/chuong[_\s]?(i|1|ii|2|iii|3|iv|4|vi|6|vii|7)\b/.test(n)) score -= 200;
-    if (/hop[_\s]?dong/.test(n))                       score -= 100;
-    if (/chao[_\s]?gia/.test(n))                       score -= 100;
+    if (/chuong ?(i|1|ii|2|iii|3|iv|4|vi|6|vii|7)\b/.test(n)) score -= 200;
+    if (/hop ?dong/.test(n))                       score -= 100;
+    if (/chao ?gia/.test(n))                       score -= 100;
 
     return score;
 }

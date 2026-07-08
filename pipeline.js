@@ -10,7 +10,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function processBids(options = {}) {
     // options.notifyNo → single bid; options.limit → cap
-    const filter = { isMedical: true };
+    const filter = { isMedical: true, aiYcktStatus: { $ne: 'done' } };
     if (options.notifyNo) filter.notifyNo = options.notifyNo;
 
     const bids = await Bid.find(filter)
@@ -48,6 +48,7 @@ async function processBid(bid) {
     });
     if (doneCount >= lotCount) {
         console.log(`[ai] skip ${bid.notifyNo} — all ${lotCount} lot(s) already done`);
+        await Bid.updateOne({ _id: bid._id }, { aiYcktStatus: 'done' });
         return { processed: 0, skipped: lotCount, errors: 0, noC5: false };
     }
 
@@ -71,12 +72,16 @@ async function processBid(bid) {
         return { processed: 0, skipped: 0, errors: 0, noC5: true };
     }
 
+    // A real attempt is starting now — count it against the bid regardless of outcome
+    await Bid.updateOne({ _id: bid._id }, { $inc: { aiYcktAttempt: 1 } });
+
     // 2. Read C5 content (once per bid)
     let c5Content;
     try {
         c5Content = await getObjectText(c5Key);
     } catch (e) {
         console.error(`[ai] Failed to read C5 file ${c5Key}: ${e.message}`);
+        await Bid.updateOne({ _id: bid._id }, { aiYcktStatus: 'error' });
         return { processed: 0, skipped: 0, errors: bid.lotDTOList.length, noC5: false };
     }
 
@@ -118,6 +123,8 @@ async function processBid(bid) {
             errors++;
         }
     }
+
+    await Bid.updateOne({ _id: bid._id }, { aiYcktStatus: errors > 0 ? 'error' : 'done' });
 
     return { processed, skipped, errors, noC5: false };
 }

@@ -2,7 +2,6 @@ require('dotenv').config();
 
 const path = require('path');
 const express = require('express');
-const schedule = require('node-schedule');
 const { connectMongo } = require('./mongo');
 const { processBids } = require('./pipeline');
 const AiProcessRecord = require('./models/AiProcessRecord');
@@ -14,7 +13,6 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 const PORT      = process.env.PORT      || 3002;
-const AI_CRON   = process.env.AI_CRON   || '0 4 * * *';
 const BASE_PATH = process.env.BASE_PATH || '';
 
 // ── Admin UI ──────────────────────────────────────────────────────
@@ -27,14 +25,14 @@ app.get('/', async (req, res) => {
             AiProcessRecord.countDocuments({ status: 'no_c5' }),
             AiProcessRecord.countDocuments({ status: 'pending' }),
         ]);
-        res.render('index', { stats: { total, done, error, noC5, pending }, cron: AI_CRON, basePath: BASE_PATH });
+        res.render('index', { stats: { total, done, error, noC5, pending }, basePath: BASE_PATH });
     } catch (e) {
         res.status(500).send(e.message);
     }
 });
 
 // ── API ───────────────────────────────────────────────────────────
-app.get('/api/status', (req, res) => res.json({ status: 'ok', cron: AI_CRON }));
+app.get('/api/status', (req, res) => res.json({ status: 'ok' }));
 
 app.get('/api/stats', async (req, res) => {
     try {
@@ -111,10 +109,15 @@ app.post('/api/retry-errors', async (req, res) => {
     }
 });
 
-// Manual full run
+// Manual/orchestrated full run — runs synchronously and returns the result summary
 app.post('/api/run', async (req, res) => {
-    res.json({ message: 'AI processing started' });
-    processBids().catch(e => console.error('[ai] Run error:', e.message));
+    try {
+        const summary = await processBids();
+        res.json(summary);
+    } catch (e) {
+        console.error('[ai] Run error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // List bids for the search-by-notifyNo trigger
@@ -137,14 +140,8 @@ app.get('/api/bids', async (req, res) => {
 async function start() {
     await connectMongo();
 
-    schedule.scheduleJob(AI_CRON, () => {
-        console.log('[ai] Scheduled run starting...');
-        processBids().catch(e => console.error('[ai] Scheduled run error:', e.message));
-    });
-
     app.listen(PORT, () => {
         console.log(`[ai] Server running on port ${PORT}`);
-        console.log(`[ai] Cron: ${AI_CRON}`);
     });
 }
 

@@ -17,7 +17,7 @@ const schema = new mongoose.Schema({
     techRequirements: {
         found: Boolean,
         items: [{
-            stt: Number,
+            stt: String,
             name: String,
             technicalSpec: String,
             unit: String,
@@ -26,6 +26,7 @@ const schema = new mongoose.Schema({
         generalRequirements: String,
         summary: String,
         raw: String,
+        truncated: { type: Boolean, default: false },
     },
     error: String,
     processedAt: Date,

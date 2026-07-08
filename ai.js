@@ -51,6 +51,48 @@ If no technical requirements are found for this lot, return:
 { "lotNo": "${lot.lotNo}", "lotName": "${lot.lotName}", "found": false, "items": [], "generalRequirements": "", "summary": "No technical requirements found for this lot." }`;
 }
 
+// When the response is valid JSON except for being cut off mid-item (the C5
+// document has more line items than fit in max_tokens), salvage every item
+// that finished before the cutoff instead of discarding the whole extraction.
+function salvageTruncatedItems(jsonStr) {
+    const itemsKeyIdx = jsonStr.indexOf('"items"');
+    if (itemsKeyIdx === -1) return null;
+    const arrStart = jsonStr.indexOf('[', itemsKeyIdx);
+    if (arrStart === -1) return null;
+
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    let lastCompleteEnd = -1;
+
+    for (let i = arrStart; i < jsonStr.length; i++) {
+        const ch = jsonStr[i];
+        if (inString) {
+            if (escape) escape = false;
+            else if (ch === '\\') escape = true;
+            else if (ch === '"') inString = false;
+            continue;
+        }
+        if (ch === '"') { inString = true; continue; }
+        if (ch === '{' || ch === '[') { depth++; continue; }
+        if (ch === '}' || ch === ']') {
+            // depth === 2 means we're one level inside the items array (1) and
+            // one level inside an item object (2) — closing '}' here ends a
+            // fully-formed item, as opposed to closing the array itself.
+            if (ch === '}' && depth === 2) lastCompleteEnd = i;
+            depth--;
+            if (depth === 0) break;
+        }
+    }
+
+    if (lastCompleteEnd === -1) return null;
+    try {
+        return JSON.parse(jsonStr.slice(arrStart, lastCompleteEnd + 1) + ']');
+    } catch {
+        return null;
+    }
+}
+
 async function callOpenRouter(apiKey, model, maxTokens, fileBase64, promptText) {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -91,7 +133,11 @@ async function extractTechRequirements(bid, lot, c5Content) {
 
     const fileBase64 = Buffer.from(c5Content, 'utf-8').toString('base64');
     const promptText = buildPrompt(bid, lot);
-    let maxTokens    = parseInt(process.env.AI_MAX_TOKENS || '2000');
+    // 2000 was cutting off responses mid-JSON for lots with several items,
+    // making JSON.parse fail and silently discarding an otherwise-successful
+    // extraction (max_tokens is a ceiling, not a floor — raising it doesn't
+    // cost more for responses that would've finished earlier anyway).
+    let maxTokens    = parseInt(process.env.AI_MAX_TOKENS || '8000');
 
     let { response, data } = await callOpenRouter(apiKey, model, maxTokens, fileBase64, promptText);
 
@@ -131,6 +177,17 @@ async function extractTechRequirements(bid, lot, c5Content) {
     try {
         parsed = JSON.parse(jsonStr);
     } catch {
+        const items = salvageTruncatedItems(jsonStr);
+        if (items && items.length) {
+            return {
+                found: true,
+                items,
+                generalRequirements: '',
+                summary: `AI response was truncated at the token limit — salvaged ${items.length} complete item(s) before the cutoff; some items may be missing.`,
+                truncated: true,
+                raw, maskedKey,
+            };
+        }
         return { found: false, items: [], generalRequirements: '', summary: 'AI response could not be parsed as JSON.', raw };
     }
 

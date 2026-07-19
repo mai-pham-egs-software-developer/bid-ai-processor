@@ -3,6 +3,7 @@ const AiProcessRecord = require('./models/AiProcessRecord');
 const { findC5File } = require('./c5finder');
 const { getObjectText } = require('./minio');
 const { extractTechRequirements } = require('./ai');
+const { getUsageSnapshot } = require('./usage');
 
 // Small delay between AI calls to avoid rate-limit bursts
 const AI_DELAY_MS = parseInt(process.env.AI_DELAY_MS || '500');
@@ -19,6 +20,8 @@ async function processBids(options = {}) {
 
     console.log(`[ai] Processing ${bids.length} bids`);
 
+    const usageBefore = await getUsageSnapshot();
+
     let processed = 0, skipped = 0, errors = 0, noC5 = 0;
 
     for (const bid of bids) {
@@ -31,8 +34,17 @@ async function processBids(options = {}) {
         if (result.noC5) noC5++;
     }
 
-    const summary = { processed, skipped, errors, noC5, total: bids.length };
-    console.log(`[ai] Done — processed: ${processed}, skipped: ${skipped}, errors: ${errors}, no_c5: ${noC5}`);
+    const usageAfter = await getUsageSnapshot();
+    const usageDelta = (usageBefore && usageAfter) ? +(usageAfter.usage - usageBefore.usage).toFixed(6) : null;
+    // Each processed/errored lot made exactly one extractTechRequirements call;
+    // skipped (already-done) and no_c5 lots never call the AI provider at all.
+    const requestCount = processed + errors;
+
+    const summary = {
+        processed, skipped, errors, noC5, total: bids.length,
+        requestCount, usageBefore, usageAfter, usageDelta,
+    };
+    console.log(`[ai] Done — processed: ${processed}, skipped: ${skipped}, errors: ${errors}, no_c5: ${noC5}, requests: ${requestCount}${usageDelta != null ? `, cost: $${usageDelta}` : ''}`);
     return summary;
 }
 

@@ -19,15 +19,18 @@ async function getConfigValue(key, fallback = '') {
     }
 }
 
-async function getNextApiKey(fallback = '') {
+async function getAllApiKeys(fallback = '') {
     const raw = await getConfigValue('OPENROUTER_API_KEY', fallback);
-    let keys;
     try {
         const parsed = JSON.parse(raw);
-        keys = Array.isArray(parsed) ? parsed.filter(Boolean) : (raw ? [raw] : []);
+        return Array.isArray(parsed) ? parsed.filter(Boolean) : (raw ? [raw] : []);
     } catch {
-        keys = raw ? [raw] : [];
+        return raw ? [raw] : [];
     }
+}
+
+async function getNextApiKey(fallback = '') {
+    const keys = await getAllApiKeys(fallback);
     if (!keys.length) return '';
     const idx = rotateIndex % keys.length;
     const key = keys[idx];
@@ -82,4 +85,4 @@ async function getAiProvider() {
     return v === 'anthropic' ? 'anthropic' : 'openrouter';
 }
 
-module.exports = { getConfigValue, getNextApiKey, getModel, getNextAnthropicKey, getAnthropicModel, getAiProvider };
+module.exports = { getConfigValue, getNextApiKey, getAllApiKeys, getModel, getNextAnthropicKey, getAnthropicModel, getAiProvider };

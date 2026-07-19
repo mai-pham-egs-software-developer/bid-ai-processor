@@ -1,4 +1,5 @@
-const { getNextApiKey, getModel } = require('./config');
+const { getNextApiKey, getModel, getAiProvider } = require('./config');
+const { completeJson, AnthropicTruncatedError, AnthropicRefusalError } = require('./anthropic');
 
 function buildPrompt(bid, lot) {
     const bidName = Array.isArray(bid.bidName) ? bid.bidName[0] : bid.bidName;
@@ -123,7 +124,73 @@ async function callOpenRouter(apiKey, model, maxTokens, fileBase64, promptText) 
     return { response, data };
 }
 
+const extractTechRequirementsSchema = {
+    type: 'object',
+    properties: {
+        lotNo: { type: 'string' },
+        lotName: { type: 'string' },
+        found: { type: 'boolean' },
+        items: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    stt: { type: 'integer' },
+                    name: { type: 'string' },
+                    technicalSpec: { type: 'string' },
+                    unit: { type: 'string' },
+                    quantity: { type: ['number', 'null'] },
+                },
+                required: ['stt', 'name', 'technicalSpec', 'unit', 'quantity'],
+                additionalProperties: false,
+            },
+        },
+        generalRequirements: { type: 'string' },
+        summary: { type: 'string' },
+    },
+    required: ['lotNo', 'lotName', 'found', 'items', 'generalRequirements', 'summary'],
+    additionalProperties: false,
+};
+
 async function extractTechRequirements(bid, lot, c5Content) {
+    const provider = await getAiProvider();
+    return provider === 'anthropic'
+        ? extractTechRequirementsViaAnthropic(bid, lot, c5Content)
+        : extractTechRequirementsViaOpenRouter(bid, lot, c5Content);
+}
+
+// c5Content is already plain text (decoded from the stored document) — inlined
+// directly as a second text block, unlike the OpenRouter path below, which has
+// to wrap it in a synthetic base64 "file" content block. No document/Files-API
+// round-trip needed since this was never actually a binary attachment.
+async function extractTechRequirementsViaAnthropic(bid, lot, c5Content) {
+    const promptText = buildPrompt(bid, lot);
+    const userContent = [
+        { type: 'text', text: promptText },
+        { type: 'text', text: c5Content },
+    ];
+    let maxTokens = parseInt(process.env.AI_MAX_TOKENS || '8000');
+
+    try {
+        let parsed;
+        try {
+            parsed = await completeJson({ userContent, jsonSchema: extractTechRequirementsSchema, maxTokens });
+        } catch (err) {
+            if (!(err instanceof AnthropicTruncatedError)) throw err;
+            const retryMaxTokens = Math.min(maxTokens * 2, 32000);
+            console.log(`[ai] Anthropic truncated at max_tokens=${maxTokens}; retrying with ${retryMaxTokens}`);
+            parsed = await completeJson({ userContent, jsonSchema: extractTechRequirementsSchema, maxTokens: retryMaxTokens });
+        }
+        return { ...parsed, maskedKey: '(anthropic)' };
+    } catch (err) {
+        if (err instanceof AnthropicRefusalError) {
+            return { found: false, items: [], generalRequirements: '', summary: `Anthropic declined the request: ${err.message}`, maskedKey: '(anthropic)' };
+        }
+        throw err;
+    }
+}
+
+async function extractTechRequirementsViaOpenRouter(bid, lot, c5Content) {
     const apiKey = await getNextApiKey(process.env.OPENROUTER_API_KEY || '');
     const model  = await getModel();
 

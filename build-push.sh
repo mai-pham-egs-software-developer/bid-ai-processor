@@ -110,3 +110,34 @@ docker push "${FULL_IMAGE}"
 
 echo ""
 echo "Done → ${FULL_IMAGE}"
+
+# ---------------------------------------------------------------------------
+# Git: commit any pending changes and push to the tracked upstream
+# ---------------------------------------------------------------------------
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo ""
+  echo "Not a git repository — skipping git push."
+else
+  echo ""
+  echo "Pushing code to git ..."
+
+  if [[ -n "$(git status --porcelain)" ]]; then
+    git add -A
+    git commit -m "Release ${TAG}"
+  else
+    echo "No pending changes to commit."
+  fi
+
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  if push_output=$(git push 2>&1); then
+    echo "$push_output"
+  elif echo "$push_output" | grep -q "has no upstream branch"; then
+    echo "No upstream configured — pushing to origin/${BRANCH} and setting upstream..."
+    git push -u origin "${BRANCH}"
+  else
+    echo "$push_output" >&2
+    exit 1
+  fi
+
+  echo "Pushed to git."
+fi
